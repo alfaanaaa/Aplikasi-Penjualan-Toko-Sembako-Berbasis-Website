@@ -23,36 +23,34 @@ $total_pendapatan = 0;
 
 try {
     if (empty($error)) {
-        //Ambil data transaksi sesuai format di halaman transaksi
-        $stmt = $pdo->prepare("
-            SELECT 
-                t.id_transaksi, 
-                p.nama_pembeli, 
-                GROUP_CONCAT(CONCAT(b.nama_barang, ' (', td.jumlah, ')') SEPARATOR ', ') AS nama_barang,
-                GROUP_CONCAT(FORMAT(b.harga, 0) SEPARATOR ', ') AS harga_satuan,
-                SUM(td.jumlah) AS total_jumlah,
-                t.total_harga,
-                t.tanggal
-            FROM transaksi t
-            LEFT JOIN pembeli p ON t.id_pembeli = p.id_pembeli
-            LEFT JOIN transaksi_detail td ON t.id_transaksi = td.id_transaksi
-            LEFT JOIN barang b ON td.id_barang = b.id_barang
-            WHERE t.tanggal BETWEEN ? AND ?
-            GROUP BY t.id_transaksi, p.nama_pembeli, t.tanggal
-            ORDER BY t.id_transaksi ASC
-        ");
-        $stmt->execute([$tanggal_dari, $tanggal_sampai]);
-        $transaksi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$stmt = $pdo->prepare("
+    SELECT 
+        t.id_transaksi, 
+        p.nama_pembeli, 
+        GROUP_CONCAT(CONCAT(b.nama_barang, ' (', td.jumlah, ')') SEPARATOR ', ') AS nama_barang,
+        GROUP_CONCAT(FORMAT(b.harga, 0) SEPARATOR ', ') AS harga_satuan,
+        SUM(td.jumlah) AS total_jumlah,
+        t.total_harga,
+        t.tanggal
+    FROM transaksi t
+    LEFT JOIN pembeli p ON t.id_pembeli = p.id_pembeli
+    LEFT JOIN transaksi_detail td ON t.id_transaksi = td.id_transaksi
+    LEFT JOIN barang b ON td.id_barang = b.id_barang
+    WHERE DATE(t.tanggal) BETWEEN ? AND ?   -- pakai DATE() untuk pastikan filter valid
+    GROUP BY t.id_transaksi, p.nama_pembeli, t.total_harga, t.tanggal
+    ORDER BY t.id_transaksi ASC
+");
+$stmt->execute([$tanggal_dari, $tanggal_sampai]);
+$transaksi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 
         // Hitung total transaksi dan total pendapatan
         $stmt_total = $pdo->prepare("
             SELECT 
-                COUNT(DISTINCT t.id_transaksi) AS total_trans,
-                COALESCE(SUM(td.jumlah * b.harga), 0) AS total_pendapatan
-            FROM transaksi t
-            JOIN transaksi_detail td ON t.id_transaksi = td.id_transaksi
-            JOIN barang b ON td.id_barang = b.id_barang
-            WHERE t.tanggal BETWEEN ? AND ?
+                COUNT(*) AS total_trans,
+                COALESCE(SUM(total_harga), 0) AS total_pendapatan
+            FROM transaksi
+            WHERE DATE(tanggal) BETWEEN ? AND ?
         ");
         $stmt_total->execute([$tanggal_dari, $tanggal_sampai]);
         $total_data = $stmt_total->fetch(PDO::FETCH_ASSOC);
@@ -68,37 +66,21 @@ try {
 <h1>Laporan Transaksi Toko Sembako Alfa</h1>
 <p class="lead">Laporan penjualan sembako berdasarkan rentang tanggal. Gunakan tombol cetak untuk PDF/printer.</p>
 
+
 <form method="GET" class="row g-3 mb-4">
     <div class="col-md-4">
-        <label for="tanggal_dari" class="form-label">Tanggal Dari</label>
-        <input 
-            type="date" 
-            class="form-control" 
-            name="tanggal_dari" 
-            id="tanggal_dari"
-            value="<?= htmlspecialchars($tanggal_dari) ?>" 
-            required
-        >
+        <label class="form-label">Tanggal Dari</label>
+        <input type="date" class="form-control" name="tanggal_dari" value="<?= htmlspecialchars($tanggal_dari) ?>" required>
     </div>
-
     <div class="col-md-4">
-        <label for="tanggal_sampai" class="form-label">Tanggal Sampai</label>
-        <input 
-            type="date" 
-            class="form-control" 
-            name="tanggal_sampai" 
-            id="tanggal_sampai"
-            value="<?= htmlspecialchars($tanggal_sampai) ?>" 
-            required
-        >
+        <label class="form-label">Tanggal Sampai</label>
+        <input type="date" class="form-control" name="tanggal_sampai" value="<?= htmlspecialchars($tanggal_sampai) ?>" required>
     </div>
-
     <div class="col-md-4 d-flex align-items-end">
         <button type="submit" class="btn btn-primary me-2">Filter Laporan</button>
         <a href="laporan.php" class="btn btn-secondary">Reset (30 Hari Terakhir)</a>
     </div>
 </form>
-
 
 <?php if ($error): ?>
     <div class="alert alert-danger"><?= $error ?></div>
