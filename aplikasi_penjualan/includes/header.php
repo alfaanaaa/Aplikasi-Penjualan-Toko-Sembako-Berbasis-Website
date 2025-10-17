@@ -4,6 +4,7 @@ include_once __DIR__ . '/../config/auth.php';
 ?>
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
 
     <meta charset="UTF-8">
@@ -265,15 +266,21 @@ include_once __DIR__ . '/../config/auth.php';
                 Toko Sembako Alfa
             </a>
 
-            <ul class="navbar-nav">
-                <?php if (isLoggedIn()): ?>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <?= $_SESSION['nama_lengkap'] ?> (<?= $_SESSION['level'] ?>)
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="./logout.php">Logout</a></li>
-                        </ul>
+                <ul class="navbar-nav">
+                    <?php if (isLoggedIn()): ?>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                                            <?php
+                            if (isset($_SESSION['nama_lengkap']) && isset($_SESSION['level'])) {
+                                echo htmlspecialchars($_SESSION['nama_lengkap']) . ' (' . ucfirst($_SESSION['level']) . ')';
+                            } else {
+                                echo 'Pengguna';
+                            }
+                            ?>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="./logout.php">Logout</a></li>
+                            </ul>
                     </li>
                 <?php else: ?>
                     <li class="nav-item"><a class="nav-link" href="./login.php">Login</a></li>
