@@ -1,7 +1,13 @@
-<?php 
+<?php
 include 'config/db.php';
 include 'config/auth.php';
 
+// Pastikan koneksi database tersedia
+if (!isset($pdo) || !$pdo instanceof PDO) {
+    die("Error: Koneksi database tidak tersedia. Periksa config/db.php.");
+}
+
+// Jika sudah login, langsung ke dashboard
 if (isLoggedIn()) {
     header('Location: dashboard.php');
     exit;
@@ -9,31 +15,35 @@ if (isLoggedIn()) {
 
 $error = '';
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') { 
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
 
     if (empty($username) || empty($password)) {
-        $error = "Username dan password wajib!";
+        $error = "Username dan password wajib diisi!";
     } else {
-        // Ambil data berdasarkan username
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
-        $stmt->execute([$username]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            // ✅ Tambahkan nama_lengkap ke query
+            $stmt = $pdo->prepare("SELECT id_user, username, password, nama_lengkap, level FROM users WHERE username = ?");
+            $stmt->execute([$username]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Cek password dan user
-        if ($user && $user['password'] == $password) {
-            // Simpan semua data penting ke session
-            $_SESSION['user_id'] = $user['id_user'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['nama_lengkap'] = $user['nama_lengkap']; // Tambahan
-            $_SESSION['level'] = $user['level'];
-            $_SESSION['last_activity'] = time();
+            if ($user && $user['password'] == $password) { 
+                // Simpan semua data penting ke session
+                $_SESSION['user_id'] = $user['id_user'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['nama_lengkap'] = !empty($user['nama_lengkap']) ? $user['nama_lengkap'] : $user['username'];
+                $_SESSION['level'] = $user['level'];
+                $_SESSION['last_activity'] = time();
 
-            header('Location: dashboard.php');
-            exit;
-        } else {
-            $error = "Username atau password salah!";
+                header('Location: dashboard.php');
+                exit;
+            } else {
+                $error = "Username atau password salah!";
+            }
+
+        } catch (PDOException $e) {
+            $error = "Error database: " . $e->getMessage();
         }
     }
 }
@@ -55,7 +65,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             align-items: center;
             justify-content: center;
         }
-
         .login-card {
             background: rgba(255, 255, 255, 0.9);
             border-radius: 12px;
@@ -64,7 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             max-width: 420px;
             padding: 25px;
         }
-
         .logo-box {
             background: #f6f1eb;
             border-radius: 10px;
@@ -72,18 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             display: inline-block;
             margin-bottom: 10px;
         }
-
         .logo-box img {
             width: 90px;
             height: auto;
         }
-
         .card-header {
             background: transparent;
             border-bottom: none;
         }
-
-        /* Tombol login dengan nuansa coklat-cream */
         .btn-primary {
             background-color: #8B4513 !important;
             border-color: #8B4513 !important;
@@ -91,14 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-weight: 600;
             transition: all 0.3s ease;
         }
-
         .btn-primary:hover {
             background-color: #A0522D !important;
             border-color: #A0522D !important;
             color: #fff !important;
             transform: scale(1.03);
         }
-
         .btn-primary:active {
             background-color: #5C4033 !important;
             border-color: #5C4033 !important;
@@ -136,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <button type="submit" class="btn btn-primary w-100">Login</button>
             </form>
             <div class="mt-3 text-center">
-                <small>Alamat : Jl. KH. Ahmad Dahlan No.11 , Kauman, Lamongan</small>
+                <small>Alamat : Jl. KH. Ahmad Dahlan No.11, Kauman, Lamongan</small>
                 <p><small>WhatsApp Admin : 0881036296001 (Alfa)</small></p>
             </div>
         </div>
