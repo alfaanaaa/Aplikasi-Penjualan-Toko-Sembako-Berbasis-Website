@@ -3,7 +3,7 @@ include 'config/db.php';
 include 'config/auth.php';
 include 'includes/header.php';
 
-requireLogin('user'); // Semua level bisa akses laporan
+requireLogin('user');
 
 $message = ''; 
 $error = '';
@@ -23,7 +23,7 @@ $total_pendapatan = 0;
 
 try {
     if (empty($error)) {
-        // ✅ Ambil data transaksi sesuai format di halaman transaksi
+        //Ambil data transaksi sesuai format di halaman transaksi
         $stmt = $pdo->prepare("
             SELECT 
                 t.id_transaksi, 
@@ -44,7 +44,7 @@ try {
         $stmt->execute([$tanggal_dari, $tanggal_sampai]);
         $transaksi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // ✅ Hitung total transaksi dan total pendapatan
+        // Hitung total transaksi dan total pendapatan
         $stmt_total = $pdo->prepare("
             SELECT 
                 COUNT(DISTINCT t.id_transaksi) AS total_trans,
@@ -68,21 +68,37 @@ try {
 <h1>Laporan Transaksi Toko Sembako Alfa</h1>
 <p class="lead">Laporan penjualan sembako berdasarkan rentang tanggal. Gunakan tombol cetak untuk PDF/printer.</p>
 
-<!-- Form Filter -->
 <form method="GET" class="row g-3 mb-4">
     <div class="col-md-4">
-        <label class="form-label">Tanggal Dari</label>
-        <input type="date" class="form-control" name="tanggal_dari" value="<?= htmlspecialchars($tanggal_dari) ?>" required>
+        <label for="tanggal_dari" class="form-label">Tanggal Dari</label>
+        <input 
+            type="date" 
+            class="form-control" 
+            name="tanggal_dari" 
+            id="tanggal_dari"
+            value="<?= htmlspecialchars($tanggal_dari) ?>" 
+            required
+        >
     </div>
+
     <div class="col-md-4">
-        <label class="form-label">Tanggal Sampai</label>
-        <input type="date" class="form-control" name="tanggal_sampai" value="<?= htmlspecialchars($tanggal_sampai) ?>" required>
+        <label for="tanggal_sampai" class="form-label">Tanggal Sampai</label>
+        <input 
+            type="date" 
+            class="form-control" 
+            name="tanggal_sampai" 
+            id="tanggal_sampai"
+            value="<?= htmlspecialchars($tanggal_sampai) ?>" 
+            required
+        >
     </div>
+
     <div class="col-md-4 d-flex align-items-end">
         <button type="submit" class="btn btn-primary me-2">Filter Laporan</button>
         <a href="laporan.php" class="btn btn-secondary">Reset (30 Hari Terakhir)</a>
     </div>
 </form>
+
 
 <?php if ($error): ?>
     <div class="alert alert-danger"><?= $error ?></div>
@@ -147,7 +163,6 @@ try {
 </div>
 <?php endif; ?>
 
-<!-- Style dan Script tetap sama -->
 
 <style>
 body {
@@ -193,10 +208,10 @@ function cetakLaporan() {
         return;
     }
 
-    // Kloning tabel agar versi asli di halaman tidak berubah
+    // Kloning tabel
     var tabelClone = tabel.cloneNode(true);
 
-    // Cari index kolom "Aksi" di header
+    // index kolom "Aksi" 
     var indexAksi = -1;
     tabelClone.querySelectorAll('th').forEach((th, i) => {
         if (th.innerText.trim().toLowerCase() === 'aksi') {
@@ -204,7 +219,7 @@ function cetakLaporan() {
         }
     });
 
-    // Jika kolom Aksi ditemukan, hapus kolom itu di semua baris (termasuk isi bawahnya)
+    // Jika kolom Aksi ditemukan, hapus kolom itu di semua baris
     if (indexAksi !== -1) {
         tabelClone.querySelectorAll('tr').forEach(row => {
             if (row.cells.length > indexAksi) {
@@ -213,7 +228,7 @@ function cetakLaporan() {
         });
     }
 
-    // Buat style agar tampilan rapi seperti tabel biasa
+    // Buat style
     var style = `
         <style>
             @page { size: A4 landscape; margin: 15mm; }
@@ -258,7 +273,7 @@ function cetakLaporan() {
         </style>
     `;
 
-    // Buka jendela baru untuk mencetak
+    // Buka tab baru untuk mencetak
     var printWindow = window.open('', '_blank', 'width=900,height=700');
     printWindow.document.open();
     printWindow.document.write(`
