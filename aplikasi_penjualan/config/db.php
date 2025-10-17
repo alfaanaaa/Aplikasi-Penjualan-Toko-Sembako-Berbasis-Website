@@ -1,5 +1,6 @@
 <?php
 $host = 'localhost';
+$port = 3306;
 $dbname = 'toko_alfa';
 $username = 'root';
 $password = '';
