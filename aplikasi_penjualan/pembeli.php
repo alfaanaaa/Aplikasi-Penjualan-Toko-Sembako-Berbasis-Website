@@ -8,12 +8,15 @@ requireLogin('user');
 $message = ''; 
 $error = '';
 
-// CREATE/UPDATE (admin only)
+// READ: List dengan pencarian
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+// CREATE/UPDATE 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && checkLevel('admin')) {
     $action = $_POST['action'] ?? 'create';
     $id = $_POST['id_pembeli'] ?? null;
-    $nama = trim($_POST['nama_pembeli']);
-    $alamat = trim($_POST['alamat']);
+    $nama = strtoupper(trim($_POST['nama_pembeli'])); // ✅ semua huruf besar
+    $alamat = ucwords(strtolower(trim($_POST['alamat']))); // ✅ huruf kapital di awal tiap kata
 
     if (empty($nama) || empty($alamat)) {
         $error = "Error: Nama dan alamat pembeli sembako wajib!";
@@ -30,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && checkLevel('admin')) {
     }
 }
 
-// DELETE (admin only)
+// DELETE
 if (isset($_POST['delete_id']) && checkLevel('admin')) {
     $id = intval($_POST['delete_id']);
     $stmt = $pdo->prepare("DELETE FROM pembeli WHERE id_pembeli=?");
@@ -38,11 +41,7 @@ if (isset($_POST['delete_id']) && checkLevel('admin')) {
     $message = "Pembeli sembako berhasil dihapus!";
 }
 
-// READ: List dengan pencarian
-// Inisialisasi pencarian (letakkan setelah include/header dan requireLogin)
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-
-// Ambil daftar pembeli (prepared statement untuk pencarian)
+// prepared statement untuk pencarian, daftar pembeli
 if ($search !== '') {
     $stmt_list = $pdo->prepare("SELECT * FROM pembeli WHERE nama_pembeli LIKE ? ORDER BY id_pembeli ASC");
     $stmt_list->execute(['%' . $search . '%']);
@@ -127,7 +126,6 @@ if ($edit_id) {
 <h1>Kelola Pembeli Sembako</h1>
 <p>Kelola data pembeli toko sembako anda dengan mudah disini.</p>
 
-<!-- Form Pencarian (semua level) -->
 <form method="GET" class="mb-3">
     <div class="input-group">
         <input type="text" class="form-control" name="search" placeholder="Cari nama pembeli sembako..." value="<?= htmlspecialchars($search) ?>">
@@ -145,7 +143,7 @@ if ($edit_id) {
     <div class="alert alert-success"><?= $message ?></div>
 <?php endif; ?>
 
-<!-- Form Tambah/Edit (admin only) -->
+
 <?php if (checkLevel('admin')): ?>
 <form method="POST" class="row g-3 mb-4">
     <input type="hidden" name="action" value="<?= $edit_id ? 'update' : 'create' ?>">
@@ -171,7 +169,7 @@ if ($edit_id) {
     <div class="alert alert-warning">Anda bukan admin. Hanya bisa melihat dan mencari pembeli sembako.</div>
 <?php endif; ?>
 
-<!-- Tabel List -->
+
 <div class="table-responsive">
 <table class="table table-striped">
     <thead>
