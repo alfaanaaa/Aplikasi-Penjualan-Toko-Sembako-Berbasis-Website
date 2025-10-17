@@ -6,10 +6,10 @@ include 'includes/header.php';
 requireLogin('user');
 $message = ''; $error = '';
 
-// Inisialisasi pencarian (letakkan setelah include/header dan requireLogin)
+// Inisialisasi pencarian
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Ambil daftar barang (prepared statement untuk pencarian)
+// prepared statement untuk pencarian
 if ($search !== '') {
     $stmt_list = $pdo->prepare("SELECT * FROM barang WHERE nama_barang LIKE ? ORDER BY id_barang ASC");
     $stmt_list->execute(['%' . $search . '%']);
@@ -20,7 +20,7 @@ if ($search !== '') {
 $barang_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
 
 
-// CREATE/UPDATE (admin only)
+// CREATE/UPDATE
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && checkLevel('admin')) {
     $action = $_POST['action'] ?? 'create';
     $id = $_POST['id_barang'] ?? null;
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && checkLevel('admin')) {
     }
 }
 
-// DELETE (admin only)
+// DELETE
 if (isset($_POST['delete_id']) && checkLevel('admin')) {
     $id = intval($_POST['delete_id']);
     $stmt = $pdo->prepare("DELETE FROM barang WHERE id_barang=?");
@@ -60,11 +60,8 @@ if ($edit_id) {
     $edit_data = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-$stmt_list = $pdo->query("SELECT * FROM barang ORDER BY id_barang ASC");
-$barang_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<!-- 🎨 Warna senada dashboard (nuansa cream-coklat) -->
 <style>
     body {
         background-color: #fff8f0; /* krem lembut */
@@ -168,7 +165,7 @@ $barang_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
     <div class="alert alert-success"><?= $message ?></div>
 <?php endif; ?>
 
-<!-- 🔍 Form Pencarian Barang -->
+
 <form method="GET" class="mb-3">
     <div class="input-group">
         <input type="text" class="form-control" name="search" placeholder="Cari nama barang..." value="<?= htmlspecialchars($search) ?>">
@@ -180,7 +177,6 @@ $barang_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
 </form>
 
 
-<!-- Form Tambah/Edit (admin only) -->
 <?php if (checkLevel('admin')): ?>
 <form method="POST" class="row g-3 mb-4">
     <input type="hidden" name="action" value="<?= $edit_id ? 'update' : 'create' ?>">
@@ -210,7 +206,7 @@ $barang_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
     <div class="alert alert-warning">Anda bukan admin. Hanya bisa melihat list barang sembako.</div>
 <?php endif; ?>
 
-<!-- Tabel List -->
+
 <div class="table-responsive">
 <table class="table table-striped">
     <thead style="background-color: #5C4033; color: #f5e6ca;">
