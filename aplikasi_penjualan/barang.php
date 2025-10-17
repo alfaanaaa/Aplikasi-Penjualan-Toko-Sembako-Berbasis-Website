@@ -22,33 +22,48 @@ $barang_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
 
 // CREATE/UPDATE
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && checkLevel('admin')) {
-    $action = $_POST['action'] ?? 'create';
-    $id = $_POST['id_barang'] ?? null;
-    $nama = strtoupper(trim($_POST['nama_barang']));
-    $harga = floatval($_POST['harga']);
-    $stok = intval($_POST['stok']);
+    if (isset($_POST['action'])) {
+        $action = $_POST['action'] ?? 'create';
+        $id = $_POST['id_barang'] ?? null;
+        $nama = strtoupper(trim($_POST['nama_barang'] ?? ''));
+        $harga = floatval($_POST['harga'] ?? 0);              
+        $stok = intval($_POST['stok'] ?? 0);                 
 
-    if (empty($nama) || $harga <= 0 || $stok < 0) {
-        $error = "Error: Nama barang sembako wajib, harga >0, stok >=0!";
-    } else {
-        if ($action == 'create') {
-            $stmt = $pdo->prepare("INSERT INTO barang (nama_barang, harga, stok) VALUES (?, ?, ?)");
-            $stmt->execute([$nama, $harga, $stok]);
-            $message = "Barang sembako berhasil ditambahkan!";
+        if (empty($nama) || $harga <= 0 || $stok < 0) {
+            $error = "Error: Nama barang sembako wajib, harga >0, stok >=0!";
         } else {
-            $stmt = $pdo->prepare("UPDATE barang SET nama_barang=?, harga=?, stok=? WHERE id_barang=?");
-            $stmt->execute([$nama, $harga, $stok, $id]);
-            $message = "Barang sembako berhasil diupdate!";
+            if ($action == 'create') {
+                $stmt = $pdo->prepare("INSERT INTO barang (nama_barang, harga, stok) VALUES (?, ?, ?)");
+                $stmt->execute([$nama, $harga, $stok]);
+                $message = "Barang sembako berhasil ditambahkan!";
+            } else {
+                $stmt = $pdo->prepare("UPDATE barang SET nama_barang=?, harga=?, stok=? WHERE id_barang=?");
+                $stmt->execute([$nama, $harga, $stok, $id]);
+                $message = "Barang sembako berhasil diupdate!";
+            }
+        }
+    }
+
+    // DELETE
+    if (isset($_POST['delete_id'])) {
+        $id = intval($_POST['delete_id']);
+        if ($id > 0) {
+            $stmt = $pdo->prepare("DELETE FROM barang WHERE id_barang=?");
+            $stmt->execute([$id]);
+            $message = "Barang sembako berhasil dihapus!";
+        } else {
+            $error = "ID Barang tidak valid!";
         }
     }
 }
 
-// DELETE
-if (isset($_POST['delete_id']) && checkLevel('admin')) {
-    $id = intval($_POST['delete_id']);
-    $stmt = $pdo->prepare("DELETE FROM barang WHERE id_barang=?");
-    $stmt->execute([$id]);
-    $message = "Barang sembako berhasil dihapus!";
+// READ: List dan edit data
+$edit_id = intval($_GET['edit'] ?? 0);
+$edit_data = [];
+if ($edit_id) {
+    $stmt = $pdo->prepare("SELECT * FROM barang WHERE id_barang=?");
+    $stmt->execute([$edit_id]);
+    $edit_data = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
 // READ: List dan edit data
@@ -251,3 +266,4 @@ if ($edit_id) {
 </div>
 
 <?php include 'includes/footer.php'; ?>
+
