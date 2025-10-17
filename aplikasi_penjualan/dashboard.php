@@ -21,9 +21,30 @@ $stmt = $pdo->query("
     LIMIT 1
 ");
 $barang_terlaris = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$chart_stmt = $pdo->query("
+    SELECT 
+        DATE(tanggal) AS hari,
+        COUNT(*) AS total_transaksi,
+        SUM(total_harga) AS total_pendapatan
+    FROM transaksi
+    WHERE tanggal >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    GROUP BY DATE(tanggal)
+    ORDER BY hari ASC
+");
+
+$hari = [];
+$total_transaksi = [];
+$total_pendapatan_chart = [];
+
+while ($row = $chart_stmt->fetch(PDO::FETCH_ASSOC)) {
+    $hari[] = $row['hari'];
+    $total_transaksi[] = $row['total_transaksi'];
+    $total_pendapatan_chart[] = $row['total_pendapatan'];
+}
 ?>
 
-<!-- Font modern -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
@@ -131,7 +152,7 @@ $barang_terlaris = $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     .bg-primary { background: linear-gradient(135deg, #5a3e2b, #8b5a2b); color: #fff; }
-.bg-primary h2 { color: #fff5d1; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    .bg-primary h2 { color: #fff5d1; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
     .bg-success { background: linear-gradient(135deg, #e49b37, #c47f1a); color: #fff; }
     .bg-info { background: linear-gradient(135deg, #f5deb3, #e6c79c); color: #3b2f1e; }
 
@@ -147,6 +168,28 @@ $barang_terlaris = $stmt->fetch(PDO::FETCH_ASSOC);
         max-width: 900px;
         margin-left: auto;
         margin-right: auto;
+    }
+
+        .chart-container {
+        background: #fff;
+        border-radius: 18px;
+        padding: 20px;
+        margin-top: 40px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        max-width: 650px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .chart-container h3 {
+        text-align: center;
+        font-size: 18px;
+        font-weight: 600;
+        color: #5a3e2b;
+        margin-bottom: 10px;
+    }
+    canvas {
+        width: 100% !important;
+        height: 260px !important;
     }
 
     .about-section h3 {
@@ -209,7 +252,8 @@ $barang_terlaris = $stmt->fetch(PDO::FETCH_ASSOC);
         <a href="laporan.php" class="menu-card cream">📊<h5>Laporan Transaksi</h5></a>
     </div>
 
-    <p class="lead">Ringkasan penjualan sembako hari ini.</p>
+    <p class="lead">Ringkasan penjualan sembako.</p>
+    
 
     <div class="summary-row">
         <div class="summary-card bg-primary">
@@ -226,11 +270,65 @@ $barang_terlaris = $stmt->fetch(PDO::FETCH_ASSOC);
             <small>(Terjual: <?= number_format($barang_terlaris['total_jual'], 0, ',', '.') ?> unit)</small>
         </div>
     </div>
+<br>
+    <div class="chart-container">
+        <h3>📅 Grafik Penjualan Harian</h3>
+        <canvas id="chartPenjualanHarian"></canvas>
+    </div>
+
+    <script>
+    const ctx = document.getElementById('chartPenjualanHarian').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: <?= json_encode($hari) ?>,
+            datasets: [{
+                label: 'Total Transaksi',
+                data: <?= json_encode($total_transaksi) ?>,
+                backgroundColor: 'rgba(196,127,26,0.7)',
+                borderColor: '#c47f1a',
+                borderWidth: 1
+            }, {
+                label: 'Pendapatan (Rp)',
+                data: <?= json_encode($total_pendapatan_chart) ?>,
+                backgroundColor: 'rgba(90,62,43,0.6)',
+                borderColor: '#5a3e2b',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#3b2f1e', font: { size: 13 } } },
+                title: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 200000, // kelipatan Rp200.000
+                        callback: function(value) {
+                            return 'Rp ' + value.toLocaleString('id-ID');
+                        }
+                    },
+                    suggestedMax: 1000000, // batas maksimum Rp1.000.000
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    title: { display: true, text: 'Pendapatan', color: '#5a3e2b', font: { weight: '600' } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#3b2f1e' }
+                }
+            }
+        }
+    });
+    </script>
+
 
     <div class="about-section">
         <h3>🛍️ Tentang Website Toko Sembako Alfa</h3>
         <p>
-            Website ini dirancang untuk membantu pengelolaan data penjualan pada <b>Toko Sembako Alfa</b> agar lebih <b>digital</b> dan <b>efisien</b>. 
+            Website ini dirancang untuk membantu pengelolaan data penjualan pada Toko Sembako Alfa agar lebih digital dan efisien. 
             Pengguna dapat mencatat transaksi, mengelola data barang, serta memantau pendapatan harian secara real-time.
         </p>
         <p>
