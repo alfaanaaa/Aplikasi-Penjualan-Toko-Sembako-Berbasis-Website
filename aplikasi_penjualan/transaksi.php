@@ -14,7 +14,7 @@ $id_barang    = 0;
 $jumlah       = 0;
 $tanggal      = date('Y-m-d');
 
-// --- Ambil list pembeli dan barang untuk dropdown ---
+//Ambil list pembeli dan barang untuk dropdown
 $stmt = $pdo->query("
     SELECT 
         t.id_transaksi, 
@@ -35,7 +35,7 @@ $transaksi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $pembeli_list = $pdo->query("SELECT id_pembeli, nama_pembeli FROM pembeli ORDER BY nama_pembeli")->fetchAll(PDO::FETCH_ASSOC);
 $barang_list = $pdo->query("SELECT id_barang, nama_barang, harga, stok FROM barang ORDER BY nama_barang")->fetchAll(PDO::FETCH_ASSOC);
 
-// --- CREATE Multi Barang ---
+// CREATE Multi Barang
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['action'] ?? '') == 'create') {
     $id_pembeli = intval($_POST['id_pembeli']);
     $tanggal = $_POST['tanggal'] ?? date('Y-m-d');
@@ -44,60 +44,69 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['action'] ?? '') == 'create'
     if ($id_pembeli <= 0 || empty($items)) {
         $error = "Error: Pilih pembeli dan minimal 1 barang sembako!";
     } else {
-        $pdo->beginTransaction();
         try {
-            // Hitung total harga semua item
-            $grand_total = 0;
-            foreach ($items as $item) {
-                $id_barang = intval($item['id_barang']);
-                $jumlah = intval($item['jumlah']);
-                $stmt_barang = $pdo->prepare("SELECT harga, stok FROM barang WHERE id_barang=?");
-                $stmt_barang->execute([$id_barang]);
-                $barang = $stmt_barang->fetch(PDO::FETCH_ASSOC);
+            $pdo->beginTransaction();
 
-                if (!$barang || $jumlah <= 0 || $jumlah > $barang['stok']) {
-                    throw new Exception("Stok tidak cukup atau barang tidak valid.");
+            // Hitung grand total dan validasi item
+            $grand_total = 0;
+            $valid_items = [];
+            foreach ($items as $idx => $it) {
+                $id_barang = intval($it['id_barang'] ?? 0);
+                $jumlah = intval($it['jumlah'] ?? 0);
+
+                if ($id_barang <= 0 || $jumlah <= 0) {
+                    throw new Exception("Item #$idx: id_barang atau jumlah tidak valid.");
                 }
 
-                $grand_total += $barang['harga'] * $jumlah;
-            }
-
-            // INSERT ke tabel transaksi (header)
-            $stmt = $pdo->prepare("INSERT INTO transaksi (id_pembeli, total_harga, tanggal) VALUES (?, ?, ?)");
-            $stmt->execute([$id_pembeli, $grand_total, $tanggal]);
-            $id_transaksi = $pdo->lastInsertId();
-
-            // INSERT tiap item ke tabel transaksi_detail
-            foreach ($items as $item) {
-                $id_barang = intval($item['id_barang']);
-                $jumlah = intval($item['jumlah']);
-                $stmt_barang = $pdo->prepare("SELECT harga FROM barang WHERE id_barang=?");
+                $stmt_barang = $pdo->prepare("SELECT harga, stok FROM barang WHERE id_barang = ?");
                 $stmt_barang->execute([$id_barang]);
                 $barang = $stmt_barang->fetch(PDO::FETCH_ASSOC);
-                $harga = $barang['harga'];
 
-                $pdo->prepare("INSERT INTO transaksi_detail (id_transaksi, id_barang, jumlah, harga) VALUES (?, ?, ?, ?)")
-                    ->execute([$id_transaksi, $id_barang, $jumlah, $harga]);
+                if (!$barang) {
+                    throw new Exception("Item #$idx: Barang tidak ditemukan.");
+                }
+                if ($jumlah > (int)$barang['stok']) {
+                    throw new Exception("Item #$idx: Stok barang tidak cukup.");
+                }
 
-                // Kurangi stok
-                $pdo->prepare("UPDATE barang SET stok = stok - ? WHERE id_barang=?")
-                    ->execute([$jumlah, $id_barang]);
+                $subtotal = $barang['harga'] * $jumlah;
+                $grand_total += $subtotal;
+                $valid_items[] = [
+                    'id_barang' => $id_barang,
+                    'jumlah' => $jumlah,
+                    'harga' => $barang['harga'],
+                    'subtotal' => $subtotal
+                ];
+            }
+
+            // Simpan ke tabel transaksi
+            $stmt_trans = $pdo->prepare("INSERT INTO transaksi (id_pembeli, tanggal, total_harga) VALUES (?, ?, ?)");
+            $stmt_trans->execute([$id_pembeli, $tanggal, $grand_total]);
+            $id_transaksi_baru = $pdo->lastInsertId();
+
+            // Simpan detail transaksi dan update stok
+            $stmt_detail = $pdo->prepare("INSERT INTO transaksi_detail (id_transaksi, id_barang, jumlah, harga, subtotal) VALUES (?, ?, ?, ?, ?)");
+            $stmt_update_stok = $pdo->prepare("UPDATE barang SET stok = stok - ? WHERE id_barang = ?");
+
+            foreach ($valid_items as $vi) {
+                $stmt_detail->execute([$id_transaksi_baru, $vi['id_barang'], $vi['jumlah'], $vi['harga'], $vi['subtotal']]);
+                $stmt_update_stok->execute([$vi['jumlah'], $vi['id_barang']]);
             }
 
             $pdo->commit();
-            $message = "Transaksi sembako berhasil ditambahkan untuk $id_transaksi.";
+            $message = "✅ Transaksi berhasil disimpan (ID: $id_transaksi_baru) Total: Rp " . number_format($grand_total, 0, ',', '.');
         } catch (Exception $e) {
             if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        $pdo->rollBack();
-            $error = "Gagal membuat transaksi: " . $e->getMessage();
+                $pdo->rollBack();
+            }
+            $error = "❌ Gagal menyimpan transaksi: " . $e->getMessage();
         }
     }
 }
 
 
-// --- DELETE (admin only) ---
+
+// DELETE
 if (isset($_POST['delete_id']) && checkLevel('admin')) {
     $id_transaksi = intval($_POST['delete_id']);
     $stmt_data = $pdo->prepare("SELECT jumlah, id_barang FROM transaksi WHERE id_transaksi=?");
@@ -114,28 +123,51 @@ if (isset($_POST['delete_id']) && checkLevel('admin')) {
     }
 }
 
-// --- READ List Transaksi ---
-$filter_tanggal = $_GET['filter_tanggal'] ?? '';
+//READ List Transaksi
+$tanggal_awal = $_GET['tanggal_awal'] ?? '';
+$tanggal_akhir = $_GET['tanggal_akhir'] ?? '';
 $transaksi_list = [];
 
 try {
-$stmt_list = $pdo->prepare("
-    SELECT 
-        t.id_transaksi,
-        p.nama_pembeli,
-        GROUP_CONCAT(CONCAT(b.nama_barang, ' (', td.jumlah, ')') SEPARATOR ', ') AS barang_dibeli,
-        SUM(td.jumlah) AS total_jumlah,
-        SUM(td.jumlah * td.harga) AS total_harga,
-        t.tanggal
-    FROM transaksi t
-    LEFT JOIN pembeli p ON t.id_pembeli = p.id_pembeli
-    LEFT JOIN transaksi_detail td ON t.id_transaksi = td.id_transaksi
-    LEFT JOIN barang b ON td.id_barang = b.id_barang
-    GROUP BY t.id_transaksi, p.nama_pembeli, t.tanggal
-    ORDER BY t.id_transaksi ASC
-");
-$stmt_list->execute();
-$transaksi_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
+    $query = "
+        SELECT 
+            t.id_transaksi,
+            p.nama_pembeli,
+            GROUP_CONCAT(CONCAT(b.nama_barang, ' (', td.jumlah, ')') SEPARATOR ', ') AS barang_dibeli,
+            SUM(td.jumlah) AS total_jumlah,
+            SUM(td.jumlah * td.harga) AS total_harga,
+            t.tanggal
+        FROM transaksi t
+        LEFT JOIN pembeli p ON t.id_pembeli = p.id_pembeli
+        LEFT JOIN transaksi_detail td ON t.id_transaksi = td.id_transaksi
+        LEFT JOIN barang b ON td.id_barang = b.id_barang
+    ";
+
+    $params = [];
+    $conditions = [];
+
+    if (!empty($tanggal_awal) && !empty($tanggal_akhir)) {
+        $conditions[] = "t.tanggal BETWEEN ? AND ?";
+        $params[] = $tanggal_awal;
+        $params[] = $tanggal_akhir;
+    } elseif (!empty($tanggal_awal)) {
+        $conditions[] = "t.tanggal >= ?";
+        $params[] = $tanggal_awal;
+    } elseif (!empty($tanggal_akhir)) {
+        $conditions[] = "t.tanggal <= ?";
+        $params[] = $tanggal_akhir;
+    }
+
+    if (!empty($conditions)) {
+        $query .= " WHERE " . implode(' AND ', $conditions);
+    }
+
+    $query .= " GROUP BY t.id_transaksi, p.nama_pembeli, t.tanggal ORDER BY t.id_transaksi ASC";
+
+    $stmt_list = $pdo->prepare($query);
+    $stmt_list->execute($params);
+    $transaksi_list = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
+
 } catch (PDOException $e) {
     $error = "Error query transaksi: " . $e->getMessage();
 }
@@ -174,23 +206,33 @@ input.form-control:focus, select.form-select:focus {
         <div class="alert alert-danger"><?= $error ?></div>
     <?php endif; ?>
 
-    <!-- Filter -->
     <form method="get" class="mb-4">
-        <div class="row g-3 align-items-center">
-            <div class="col-auto">
-                <label for="filter_tanggal" class="col-form-label">Filter tanggal:</label>
-            </div>
-            <div class="col-auto">
-                <input type="date" name="filter_tanggal" id="filter_tanggal" class="form-control" value="<?= htmlspecialchars($filter_tanggal) ?>">
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-secondary">Terapkan</button>
-                <a href="?" class="btn btn-warning">Reset</a>
-            </div>
+    <div class="row g-3 align-items-end flex-wrap">
+        <div class="col-auto">
+            <label for="tanggal_awal" class="col-form-label">Dari tanggal:</label>
+            <input type="date" 
+                   name="tanggal_awal" 
+                   id="tanggal_awal" 
+                   class="form-control" 
+                   value="<?= htmlspecialchars($_GET['tanggal_awal'] ?? '') ?>">
         </div>
-    </form>
 
-    <!-- Form Transaksi -->
+        <div class="col-auto">
+            <label for="tanggal_akhir" class="col-form-label">Sampai tanggal:</label>
+            <input type="date" 
+                   name="tanggal_akhir" 
+                   id="tanggal_akhir" 
+                   class="form-control" 
+                   value="<?= htmlspecialchars($_GET['tanggal_akhir'] ?? '') ?>">
+        </div>
+
+        <div class="col-auto d-flex gap-2">
+            <button type="submit" class="btn btn-secondary">Terapkan</button>
+            <a href="?" class="btn btn-warning">Reset</a>
+        </div>
+    </div>
+</form>
+
 <div class="card shadow p-4 mb-5">
     <h4>Tambah Transaksi Baru</h4>
     <form method="post">
@@ -236,7 +278,6 @@ input.form-control:focus, select.form-select:focus {
 </div>
 
 
-    <!-- Daftar Transaksi -->
     <div class="table-responsive">
         <table class="table table-striped table-hover align-middle">
             <thead>
